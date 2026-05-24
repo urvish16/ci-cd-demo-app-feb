@@ -1,0 +1,47 @@
+pipeline {
+    agent any
+    environment {
+        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-credentials')
+        IMAGE_NAME = 'urvishsoni16/jenkins-ci-cd-demo-app'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Repository checked out by Checkout SCM'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+            }
+        }
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                    sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+        stage('Deploy Approval') {
+            steps {
+            input message: 'Approve deployment to production?', ok: 'Deploy'
+            }
+        }
+        stage('Deploy') {
+            steps {
+            sh "docker run -d -p 8081:8081 ${IMAGE_NAME}:${IMAGE_TAG}"
+            }
+        }
+    }
+}
